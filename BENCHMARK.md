@@ -31,3 +31,36 @@ BenchmarkQueueSteadyFlow/priorities_100000/items_per_bucket_100/container_heap-1
 PASS
 ok      github.com/Napolitain/go-fastpq 54.039s
 ```
+
+```
+goos: windows
+goarch: amd64
+pkg: github.com/Napolitain/go-fastpq
+cpu: Intel(R) Core(TM) i7-14700K
+BenchmarkQueuePushPop/priorities_10/items_per_bucket_100/fastpq-28        156619              7677 ns/op           20792 B/op         83 allocs/op
+BenchmarkQueuePushPop/priorities_10/items_per_bucket_100/container_heap-28                 13218             91432 ns/op   72608 B/op       2002 allocs/op
+BenchmarkQueuePushPop/priorities_10/items_per_bucket_10000/fastpq-28                        1479            779646 ns/op 3576655 B/op        193 allocs/op
+BenchmarkQueuePushPop/priorities_10/items_per_bucket_10000/container_heap-28                  84          13707594 ns/op 7200289 B/op     200002 allocs/op
+BenchmarkQueuePushPop/priorities_10/items_per_bucket_1000000/fastpq-28                        15          78755147 ns/op416781196 B/op       383 allocs/op
+BenchmarkQueuePushPop/priorities_10/items_per_bucket_1000000/container_heap-28                 1        2271855500 ns/op720001248 B/op  20000004 allocs/op
+BenchmarkQueuePushPop/priorities_1000/items_per_bucket_100/fastpq-28                        1340            865534 ns/op 2072964 B/op       8003 allocs/op
+BenchmarkQueuePushPop/priorities_1000/items_per_bucket_100/container_heap-28                  79          14882857 ns/op 7200291 B/op     200002 allocs/op
+BenchmarkQueuePushPop/priorities_1000/items_per_bucket_10000/fastpq-28                         9         125151744 ns/op357656981 B/op     19003 allocs/op
+BenchmarkQueuePushPop/priorities_1000/items_per_bucket_10000/container_heap-28                 1        2979080700 ns/op720001248 B/op  20000004 allocs/op
+BenchmarkQueuePushPop/priorities_100000/items_per_bucket_100/fastpq-28                         8         132261825 ns/op207216728 B/op    800003 allocs/op
+BenchmarkQueuePushPop/priorities_100000/items_per_bucket_100/container_heap-28                 1        2409634400 ns/op720001248 B/op  20000004 allocs/op
+BenchmarkQueueSteadyFlow/priorities_10/items_per_bucket_100/fastpq-28                   196685294                6.090 ns/op           0 B/op          0 allocs/op
+BenchmarkQueueSteadyFlow/priorities_10/items_per_bucket_100/container_heap-28           13946725                85.27 ns/op           48 B/op          2 allocs/op
+BenchmarkQueueSteadyFlow/priorities_10/items_per_bucket_10000/fastpq-28                 196021322                6.089 ns/op           0 B/op          0 allocs/op
+BenchmarkQueueSteadyFlow/priorities_10/items_per_bucket_10000/container_heap-28          8723566               132.3 ns/op            48 B/op          2 allocs/op
+BenchmarkQueueSteadyFlow/priorities_10/items_per_bucket_1000000/fastpq-28               157093826                7.541 ns/op           8 B/op          0 allocs/op
+BenchmarkQueueSteadyFlow/priorities_10/items_per_bucket_1000000/container_heap-28        6086463               405.1 ns/op            48 B/op          2 allocs/op
+BenchmarkQueueSteadyFlow/priorities_1000/items_per_bucket_100/fastpq-28                 54890264                20.85 ns/op            0 B/op          0 allocs/op
+BenchmarkQueueSteadyFlow/priorities_1000/items_per_bucket_100/container_heap-28          4503271               260.7 ns/op            48 B/op          2 allocs/op
+BenchmarkQueueSteadyFlow/priorities_1000/items_per_bucket_10000/fastpq-28               92749321                21.09 ns/op            9 B/op          0 allocs/op
+BenchmarkQueueSteadyFlow/priorities_1000/items_per_bucket_10000/container_heap-28        2668332               461.0 ns/op            48 B/op          2 allocs/op
+BenchmarkQueueSteadyFlow/priorities_100000/items_per_bucket_100/fastpq-28               38528097               192.0 ns/op             8 B/op          0 allocs/op
+BenchmarkQueueSteadyFlow/priorities_100000/items_per_bucket_100/container_heap-28        5068078               241.4 ns/op            48 B/op          2 allocs/op
+PASS
+ok      github.com/Napolitain/go-fastpq 56.551s
+```

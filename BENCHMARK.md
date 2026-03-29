@@ -1,3 +1,4 @@
+```
 ❯ go test -run '^$' -bench 'BenchmarkQueue' -benchmem
 goos: darwin
 goarch: arm64
@@ -29,3 +30,4 @@ BenchmarkQueueSteadyFlow/priorities_100000/items_per_bucket_100/fastpq-10       
 BenchmarkQueueSteadyFlow/priorities_100000/items_per_bucket_100/container_heap-10       5963227               229.1 ns/op            48 B/op          2 allocs/op
 PASS
 ok      github.com/Napolitain/go-fastpq 54.039s
+```

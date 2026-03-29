@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Verify module files are tidy
+        run: |
+          go mod tidy
+          files="go.mod"
+          if [ -f go.sum ]; then
+            files="$files go.sum"
+          fi
+          git diff --exit-code -- $files
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.6.1
+
+      - name: Run tests with coverage
+        run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage
+          path: coverage.out
+
+      - name: Build packages
+        run: go build ./...

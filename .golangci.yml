@@ -19,9 +19,29 @@ linters:
       check-blank: true
       check-type-assertions: true
     govet:
-      check-shadowing: true
+      enable:
+        - shadow
     revive:
-      config: .revive.toml
+      severity: warning
+      confidence: 0.8
+      rules:
+        - name: error-strings
+        - name: receiver-naming
+        - name: time-naming
+        - name: var-naming
+          arguments:
+            -
+              - API
+              - CI
+              - FIFO
+              - HTTP
+              - HTTPS
+              - ID
+              - JSON
+              - URL
+            - []
+            -
+              - upper-case-const: true
   exclusions:
     generated: lax
     warn-unused: true

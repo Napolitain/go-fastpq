@@ -149,7 +149,12 @@ func (h minPageHeap) Swap(i, j int) {
 }
 
 func (h *minPageHeap) Push(x any) {
-	*h = append(*h, x.(int))
+	value, ok := x.(int)
+	if !ok {
+		panic("fastpq: minPageHeap only accepts int values")
+	}
+
+	*h = append(*h, value)
 }
 
 func (h *minPageHeap) Pop() any {

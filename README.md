@@ -157,16 +157,10 @@ Run the same checks as GitHub Actions:
 gofmt -l .
 go mod tidy
 git diff --exit-code -- go.mod go.sum
-golangci-lint run ./...
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...
 go test -v -coverprofile=coverage.out -covermode=atomic ./...
 go build ./...
 go run golang.org/x/tools/cmd/deadcode@v0.45.0 -test ./...
-```
-
-Install the pinned linter locally with:
-
-```bash
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
 ```
 
 ## Benchmarks

@@ -16,11 +16,24 @@ var (
 	ErrInvalidPriorityCount = errors.New("fastpq: priority count must be greater than zero")
 	// ErrPriorityOutOfRange reports that a pushed priority falls outside [0, N).
 	ErrPriorityOutOfRange = errors.New("fastpq: priority out of range")
+	// ErrBulkQueueDraining reports that a bulk queue was pushed after draining began.
+	ErrBulkQueueDraining = errors.New("fastpq: bulk queue cannot be pushed while draining")
 )
 
-// Queue is a bucket-based priority queue with a fixed number of priorities and
-// FIFO ordering within each priority bucket. Lower numeric priorities are
-// popped first, so priority 0 is the highest priority.
+// PriorityQueue is the common API implemented by Queue, BulkQueue, and
+// SparseQueue.
+type PriorityQueue[T any] interface {
+	Push(priority int, value T) error
+	Peek() (T, bool)
+	Pop() (T, bool)
+	Len() int
+	IsEmpty() bool
+}
+
+// Queue is the default live bucket-based priority queue. It is optimized for
+// interleaved Push and Pop calls with a fixed number of priorities and FIFO
+// ordering within each priority bucket. Lower numeric priorities are popped
+// first, so priority 0 is the highest priority.
 type Queue[T any] struct {
 	buckets      []bucket[T]
 	nonEmpty     []uint64
@@ -33,11 +46,11 @@ type bucket[T any] struct {
 	head   int
 }
 
-// New creates a queue with a fixed number of priorities. The priority count is
-// immutable for the lifetime of the queue.
+// New creates the default live queue with a fixed number of priorities. The
+// priority count is immutable for the lifetime of the queue.
 func New[T any](numPriorities int) (*Queue[T], error) {
-	if numPriorities <= 0 {
-		return nil, fmt.Errorf("%w: got %d", ErrInvalidPriorityCount, numPriorities)
+	if err := validatePriorityCount(numPriorities); err != nil {
+		return nil, err
 	}
 
 	return &Queue[T]{
@@ -64,13 +77,12 @@ func (q *Queue[T]) IsEmpty() bool {
 
 // Push inserts value into the FIFO bucket for priority.
 func (q *Queue[T]) Push(priority int, value T) error {
-	if priority < 0 || priority >= len(q.buckets) {
-		return fmt.Errorf("%w: got %d, want [0,%d)", ErrPriorityOutOfRange, priority, len(q.buckets))
+	if err := validateFixedPriority(priority, len(q.buckets)); err != nil {
+		return err
 	}
 
 	b := &q.buckets[priority]
-	wasEmpty := b.empty()
-	b.values = append(b.values, value)
+	wasEmpty := b.push(value)
 	q.size++
 
 	if wasEmpty {
@@ -91,7 +103,7 @@ func (q *Queue[T]) Peek() (T, bool) {
 	}
 
 	b := &q.buckets[q.headPriority]
-	return b.values[b.head], true
+	return b.front(), true
 }
 
 // Pop removes and returns the next value from the highest-priority non-empty
@@ -105,13 +117,10 @@ func (q *Queue[T]) Pop() (T, bool) {
 	priority := q.headPriority
 	b := &q.buckets[priority]
 
-	value := b.values[b.head]
-	b.values[b.head] = zero
-	b.head++
+	value, emptied := b.popFront()
 	q.size--
 
-	if b.empty() {
-		b.reset()
+	if emptied {
 		q.clearNonEmpty(priority)
 		if q.size == 0 {
 			q.headPriority = -1
@@ -125,8 +134,31 @@ func (q *Queue[T]) Pop() (T, bool) {
 		return value, true
 	}
 
-	b.compactIfNeeded()
 	return value, true
+}
+
+func validatePriorityCount(numPriorities int) error {
+	if numPriorities <= 0 {
+		return fmt.Errorf("%w: got %d", ErrInvalidPriorityCount, numPriorities)
+	}
+
+	return nil
+}
+
+func validateFixedPriority(priority, priorityCount int) error {
+	if priority < 0 || priority >= priorityCount {
+		return fmt.Errorf("%w: got %d, want [0,%d)", ErrPriorityOutOfRange, priority, priorityCount)
+	}
+
+	return nil
+}
+
+func validateSparsePriority(priority int) error {
+	if priority < 0 {
+		return fmt.Errorf("%w: got %d, want >= 0", ErrPriorityOutOfRange, priority)
+	}
+
+	return nil
 }
 
 func (q *Queue[T]) setNonEmpty(priority int) {
@@ -171,7 +203,42 @@ func (b *bucket[T]) empty() bool {
 	return b.head >= len(b.values)
 }
 
+func (b *bucket[T]) push(value T) bool {
+	wasEmpty := b.empty()
+	b.values = append(b.values, value)
+	return wasEmpty
+}
+
+func (b *bucket[T]) front() T {
+	return b.values[b.head]
+}
+
+func (b *bucket[T]) popFront() (T, bool) {
+	value := b.values[b.head]
+	var zero T
+	b.values[b.head] = zero
+	b.head++
+
+	if b.empty() {
+		b.reset()
+		return value, true
+	}
+
+	b.compactIfNeeded()
+	return value, false
+}
+
 func (b *bucket[T]) reset() {
+	b.values = b.values[:0]
+	b.head = 0
+}
+
+func (b *bucket[T]) clear() {
+	var zero T
+	for i := b.head; i < len(b.values); i++ {
+		b.values[i] = zero
+	}
+
 	b.values = b.values[:0]
 	b.head = 0
 }

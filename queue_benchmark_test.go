@@ -11,16 +11,22 @@ import (
 )
 
 var (
-	benchmarkPriorities     = []int{10, 1000, 100000}
-	benchmarkItemsPerBucket = []int{100, 10000, 1000000}
+	benchmarkBucketCounts   = []int{16, 1024, 100000}
+	benchmarkItemsPerBucket = []int{1, 100}
 )
 
-const defaultBenchmarkMaxLiveItems int64 = 10_000_000
+const defaultBenchmarkMaxItems int64 = 10_000_000
 
 type benchmarkCase struct {
-	priorities     int
+	bucketCount    int
 	itemsPerBucket int
-	totalItems     int64
+	itemCount      int64
+}
+
+type sparseBenchmarkCase struct {
+	priorityRange    int
+	activePriorities int
+	items            int
 }
 
 type heapBenchmarkItem struct {
@@ -34,49 +40,63 @@ type stableHeapQueue struct {
 	nextSeq uint64
 }
 
-func BenchmarkQueuePushPop(b *testing.B) {
+func BenchmarkFillDrain(b *testing.B) {
 	for _, tc := range benchmarkCases(b) {
 		tc := tc
 		b.Run(tc.name(), func(b *testing.B) {
-			b.Run("fastpq", func(b *testing.B) {
+			b.Run("queue", func(b *testing.B) {
 				b.ReportAllocs()
 
 				for i := 0; i < b.N; i++ {
-					q, err := fastpq.New[int](tc.priorities)
+					q, err := fastpq.New[int](tc.bucketCount)
 					if err != nil {
-						b.Fatalf("New(%d): %v", tc.priorities, err)
+						b.Fatalf("New(%d): %v", tc.bucketCount, err)
 					}
 
-					fillFastPQ(b, q, tc)
-					drainFastPQ(b, q, tc.totalItems)
+					fillPQ(b, q, tc)
+					drainPQ(b, q, tc.itemCount)
 				}
 			})
 
-			b.Run("container_heap", func(b *testing.B) {
+			b.Run("bulk_queue", func(b *testing.B) {
 				b.ReportAllocs()
 
 				for i := 0; i < b.N; i++ {
-					q := newStableHeapQueue(b, tc.totalItems)
+					q, err := fastpq.NewBulk[int](tc.bucketCount)
+					if err != nil {
+						b.Fatalf("NewBulk(%d): %v", tc.bucketCount, err)
+					}
+
+					fillPQ(b, q, tc)
+					drainPQ(b, q, tc.itemCount)
+				}
+			})
+
+			b.Run("stdlib_heap", func(b *testing.B) {
+				b.ReportAllocs()
+
+				for i := 0; i < b.N; i++ {
+					q := newStableHeapQueue(b, tc.itemCount)
 					fillStableHeap(q, tc)
-					drainStableHeap(b, q, tc.totalItems)
+					drainStableHeap(b, q, tc.itemCount)
 				}
 			})
 		})
 	}
 }
 
-func BenchmarkQueueSteadyFlow(b *testing.B) {
+func BenchmarkSteadyState(b *testing.B) {
 	for _, tc := range benchmarkCases(b) {
 		tc := tc
 		b.Run(tc.name(), func(b *testing.B) {
-			b.Run("fastpq", func(b *testing.B) {
-				q, err := fastpq.New[int](tc.priorities)
+			b.Run("queue", func(b *testing.B) {
+				q, err := fastpq.New[int](tc.bucketCount)
 				if err != nil {
-					b.Fatalf("New(%d): %v", tc.priorities, err)
+					b.Fatalf("New(%d): %v", tc.bucketCount, err)
 				}
 
-				fillFastPQ(b, q, tc)
-				nextValue := benchmarkCapacity(b, tc.totalItems)
+				fillPQ(b, q, tc)
+				nextValue := benchmarkCapacity(b, tc.itemCount)
 
 				b.ReportAllocs()
 				b.ResetTimer()
@@ -85,17 +105,17 @@ func BenchmarkQueueSteadyFlow(b *testing.B) {
 					if _, ok := q.Pop(); !ok {
 						b.Fatal("Pop(): queue unexpectedly empty")
 					}
-					if err := q.Push(steadyFlowPriority(i, tc.priorities), nextValue); err != nil {
+					if err := q.Push(steadyStatePriority(i, tc.bucketCount), nextValue); err != nil {
 						b.Fatalf("Push(): %v", err)
 					}
 					nextValue++
 				}
 			})
 
-			b.Run("container_heap", func(b *testing.B) {
-				q := newStableHeapQueue(b, tc.totalItems)
+			b.Run("stdlib_heap", func(b *testing.B) {
+				q := newStableHeapQueue(b, tc.itemCount)
 				fillStableHeap(q, tc)
-				nextValue := benchmarkCapacity(b, tc.totalItems)
+				nextValue := benchmarkCapacity(b, tc.itemCount)
 
 				b.ReportAllocs()
 				b.ResetTimer()
@@ -104,7 +124,7 @@ func BenchmarkQueueSteadyFlow(b *testing.B) {
 					if _, ok := q.Dequeue(); !ok {
 						b.Fatal("Dequeue(): queue unexpectedly empty")
 					}
-					q.Enqueue(steadyFlowPriority(i, tc.priorities), nextValue)
+					q.Enqueue(steadyStatePriority(i, tc.bucketCount), nextValue)
 					nextValue++
 				}
 			})
@@ -112,48 +132,94 @@ func BenchmarkQueueSteadyFlow(b *testing.B) {
 	}
 }
 
+func BenchmarkSparseReused(b *testing.B) {
+	tc := sparseBenchmarkCase{
+		priorityRange:    1_000_000,
+		activePriorities: 16,
+		items:            100_000,
+	}
+
+	b.Run(tc.name(), func(b *testing.B) {
+		b.Run("sparse_queue", func(b *testing.B) {
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				q := fastpq.NewSparse[int]()
+				fillSparsePQ(b, q, tc)
+				drainPQ(b, q, int64(tc.items))
+			}
+		})
+
+		b.Run("fixed_queue", func(b *testing.B) {
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				q, err := fastpq.New[int](tc.priorityRange)
+				if err != nil {
+					b.Fatalf("New(%d): %v", tc.priorityRange, err)
+				}
+				fillSparsePQ(b, q, tc)
+				drainPQ(b, q, int64(tc.items))
+			}
+		})
+
+		b.Run("stdlib_heap", func(b *testing.B) {
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				q := newStableHeapQueue(b, int64(tc.items))
+				fillSparseHeap(q, tc)
+				drainStableHeap(b, q, int64(tc.items))
+			}
+		})
+	})
+}
+
 func benchmarkCases(b testing.TB) []benchmarkCase {
 	b.Helper()
 
-	maxLiveItems := benchmarkMaxLiveItems(b)
-	cases := make([]benchmarkCase, 0, len(benchmarkPriorities)*len(benchmarkItemsPerBucket))
+	maxItems := benchmarkMaxItems(b)
+	cases := make([]benchmarkCase, 0, len(benchmarkBucketCounts)*len(benchmarkItemsPerBucket))
 
-	for _, priorities := range benchmarkPriorities {
+	for _, bucketCount := range benchmarkBucketCounts {
 		for _, itemsPerBucket := range benchmarkItemsPerBucket {
-			totalItems := int64(priorities) * int64(itemsPerBucket)
-			if totalItems > maxLiveItems {
+			itemCount := int64(bucketCount) * int64(itemsPerBucket)
+			if itemCount > maxItems {
 				continue
 			}
 
 			cases = append(cases, benchmarkCase{
-				priorities:     priorities,
+				bucketCount:    bucketCount,
 				itemsPerBucket: itemsPerBucket,
-				totalItems:     totalItems,
+				itemCount:      itemCount,
 			})
 		}
 	}
 
 	if len(cases) == 0 {
-		b.Fatalf("no benchmark cases remain under FASTPQ_BENCH_MAX_LIVE_ITEMS=%d", maxLiveItems)
+		b.Fatalf("no benchmark cases remain under FASTPQ_BENCH_MAX_ITEMS=%d", maxItems)
 	}
 
 	return cases
 }
 
-func benchmarkMaxLiveItems(b testing.TB) int64 {
+func benchmarkMaxItems(b testing.TB) int64 {
 	b.Helper()
 
-	raw := os.Getenv("FASTPQ_BENCH_MAX_LIVE_ITEMS")
+	raw := os.Getenv("FASTPQ_BENCH_MAX_ITEMS")
 	if raw == "" {
-		return defaultBenchmarkMaxLiveItems
+		raw = os.Getenv("FASTPQ_BENCH_MAX_LIVE_ITEMS")
+	}
+	if raw == "" {
+		return defaultBenchmarkMaxItems
 	}
 
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		b.Fatalf("FASTPQ_BENCH_MAX_LIVE_ITEMS=%q: %v", raw, err)
+		b.Fatalf("FASTPQ_BENCH_MAX_ITEMS=%q: %v", raw, err)
 	}
 	if value <= 0 {
-		b.Fatalf("FASTPQ_BENCH_MAX_LIVE_ITEMS=%q must be positive", raw)
+		b.Fatalf("FASTPQ_BENCH_MAX_ITEMS=%q must be positive", raw)
 	}
 
 	return value
@@ -170,12 +236,12 @@ func benchmarkCapacity(b testing.TB, totalItems int64) int {
 	return int(totalItems)
 }
 
-func fillFastPQ(b testing.TB, q *fastpq.Queue[int], tc benchmarkCase) {
+func fillPQ(b testing.TB, q fastpq.PriorityQueue[int], tc benchmarkCase) {
 	b.Helper()
 
 	value := 0
 	for bucketOffset := 0; bucketOffset < tc.itemsPerBucket; bucketOffset++ {
-		for priority := 0; priority < tc.priorities; priority++ {
+		for priority := 0; priority < tc.bucketCount; priority++ {
 			if err := q.Push(priority, value); err != nil {
 				b.Fatalf("Push(%d, %d): %v", priority, value, err)
 			}
@@ -184,7 +250,19 @@ func fillFastPQ(b testing.TB, q *fastpq.Queue[int], tc benchmarkCase) {
 	}
 }
 
-func drainFastPQ(b testing.TB, q *fastpq.Queue[int], totalItems int64) {
+func fillSparsePQ(b testing.TB, q fastpq.PriorityQueue[int], tc sparseBenchmarkCase) {
+	b.Helper()
+
+	priorities := sparseReusedPriorities(tc)
+	for value := 0; value < tc.items; value++ {
+		priority := priorities[value%len(priorities)]
+		if err := q.Push(priority, value); err != nil {
+			b.Fatalf("Push(%d, %d): %v", priority, value, err)
+		}
+	}
+}
+
+func drainPQ(b testing.TB, q fastpq.PriorityQueue[int], totalItems int64) {
 	b.Helper()
 
 	for popped := int64(0); popped < totalItems; popped++ {
@@ -194,12 +272,36 @@ func drainFastPQ(b testing.TB, q *fastpq.Queue[int], totalItems int64) {
 	}
 }
 
-func steadyFlowPriority(step, priorities int) int {
-	return int((uint64(step) * 11400714819323198485) % uint64(priorities))
+func fillSparseHeap(q *stableHeapQueue, tc sparseBenchmarkCase) {
+	priorities := sparseReusedPriorities(tc)
+	for value := 0; value < tc.items; value++ {
+		q.Enqueue(priorities[value%len(priorities)], value)
+	}
+}
+
+func sparseReusedPriorities(tc sparseBenchmarkCase) []int {
+	if tc.activePriorities <= 1 {
+		return []int{0}
+	}
+
+	priorities := make([]int, tc.activePriorities)
+	for i := 0; i < tc.activePriorities; i++ {
+		priorities[i] = (i * (tc.priorityRange - 1)) / (tc.activePriorities - 1)
+	}
+
+	return priorities
+}
+
+func steadyStatePriority(step, bucketCount int) int {
+	return int((uint64(step) * 11400714819323198485) % uint64(bucketCount))
 }
 
 func (tc benchmarkCase) name() string {
-	return fmt.Sprintf("priorities_%d/items_per_bucket_%d", tc.priorities, tc.itemsPerBucket)
+	return fmt.Sprintf("buckets_%d/items_per_bucket_%d/items_%d", tc.bucketCount, tc.itemsPerBucket, tc.itemCount)
+}
+
+func (tc sparseBenchmarkCase) name() string {
+	return fmt.Sprintf("buckets_%d/items_per_bucket_0/items_%d/active_priorities_%d", tc.priorityRange, tc.items, tc.activePriorities)
 }
 
 func newStableHeapQueue(b testing.TB, totalItems int64) *stableHeapQueue {
@@ -216,7 +318,7 @@ func newStableHeapQueue(b testing.TB, totalItems int64) *stableHeapQueue {
 func fillStableHeap(q *stableHeapQueue, tc benchmarkCase) {
 	value := 0
 	for bucketOffset := 0; bucketOffset < tc.itemsPerBucket; bucketOffset++ {
-		for priority := 0; priority < tc.priorities; priority++ {
+		for priority := 0; priority < tc.bucketCount; priority++ {
 			q.Enqueue(priority, value)
 			value++
 		}

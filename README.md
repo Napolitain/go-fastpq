@@ -149,16 +149,25 @@ contract. Use `errors.Is` when checking these errors.
 The queues are not synchronized. Protect them with a lock if multiple
 goroutines access the same instance.
 
-## Local Quality Gate
+## Development Checks
 
-Run the same gate used by GitHub Actions:
+Run the same checks as GitHub Actions:
 
 ```bash
-./scripts/ci.sh
+gofmt -l .
+go mod tidy
+git diff --exit-code -- go.mod go.sum
+golangci-lint run ./...
+go test -v -coverprofile=coverage.out -covermode=atomic ./...
+go build ./...
+go run golang.org/x/tools/cmd/deadcode@v0.45.0 -test ./...
 ```
 
-It checks `gofmt`, `go mod tidy`, `golangci-lint`, tests with coverage,
-`go build`, and `deadcode -test`.
+Install the pinned linter locally with:
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+```
 
 ## Benchmarks
 

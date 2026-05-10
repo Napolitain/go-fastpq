@@ -28,5 +28,34 @@ jobs:
           go-version: 1.26.x
           cache: true
 
-      - name: Run local CI gate
-        run: ./scripts/ci.sh
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            echo "Go files must be formatted with gofmt."
+            exit 1
+          fi
+
+      - name: Verify module files are tidy
+        run: |
+          go mod tidy
+          files="go.mod"
+          if [ -f go.sum ]; then
+            files="$files go.sum"
+          fi
+          git diff --exit-code -- $files
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.11.4
+
+      - name: Run tests with coverage
+        run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Build packages
+        run: go build ./...
+
+      - name: Run deadcode
+        run: go run golang.org/x/tools/cmd/deadcode@v0.45.0 -test ./...

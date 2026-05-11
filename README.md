@@ -166,8 +166,9 @@ go run golang.org/x/tools/cmd/deadcode@v0.45.0 -test ./...
 ## Benchmarks
 
 The benchmark suite uses the same workload names and dimensions as the C++
-benchmark. It compares `Queue`, `BulkQueue`, `SparseQueue`, and the
-`stdlib_heap` baseline implemented with Go's standard `container/heap`.
+benchmark. It compares `Queue`, `BulkQueue`, `SparseQueue`, the `stdlib_heap`
+baseline implemented with Go's standard `container/heap`, and the
+`static_buckets_budget` fill-drain performance-envelope endpoint.
 
 Run it with:
 

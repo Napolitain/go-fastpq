@@ -15,6 +15,13 @@ The shared fixed-range matrix is:
 Every workload includes the `stdlib_heap` baseline. In Go, `stdlib_heap` is a
 FIFO-preserving adapter over the standard `container/heap` package.
 
+The fill-drain workload also includes `static_buckets_budget`. This is the
+performance-envelope endpoint for the workload: it preallocates one exact-size
+bucket slice per priority, fills those buckets by direct index, and drains by
+iterating the buckets without pop bookkeeping, element destruction, clearing, or
+shrinking. It is not a general queue implementation; it is the static bucket
+budget that the real queue variants are measured against.
+
 Run:
 
 ```bash

@@ -13,6 +13,7 @@ import (
 var (
 	benchmarkBucketCounts   = []int{16, 1024, 100000}
 	benchmarkItemsPerBucket = []int{1, 100}
+	benchmarkSink           uint64
 )
 
 const defaultBenchmarkMaxItems int64 = 10_000_000
@@ -44,6 +45,14 @@ func BenchmarkFillDrain(b *testing.B) {
 	for _, tc := range benchmarkCases(b) {
 		tc := tc
 		b.Run(tc.name(), func(b *testing.B) {
+			b.Run("static_buckets_budget", func(b *testing.B) {
+				b.ReportAllocs()
+
+				for i := 0; i < b.N; i++ {
+					benchmarkSink = fillDrainStaticBuckets(b, tc)
+				}
+			})
+
 			b.Run("queue", func(b *testing.B) {
 				b.ReportAllocs()
 
@@ -270,6 +279,38 @@ func drainPQ(b testing.TB, q fastpq.PriorityQueue[int], totalItems int64) {
 			b.Fatalf("Pop() failed after %d/%d items", popped, totalItems)
 		}
 	}
+}
+
+func fillDrainStaticBuckets(b testing.TB, tc benchmarkCase) uint64 {
+	b.Helper()
+
+	buckets := make([][]int, tc.bucketCount)
+	for priority := range buckets {
+		buckets[priority] = make([]int, tc.itemsPerBucket)
+	}
+
+	value := 0
+	for bucketOffset := 0; bucketOffset < tc.itemsPerBucket; bucketOffset++ {
+		for priority := 0; priority < tc.bucketCount; priority++ {
+			buckets[priority][bucketOffset] = value
+			value++
+		}
+	}
+
+	drained := int64(0)
+	checksum := uint64(0)
+	for _, bucket := range buckets {
+		for _, value := range bucket {
+			checksum += uint64(value)
+			drained++
+		}
+	}
+
+	if drained != tc.itemCount {
+		b.Fatalf("static bucket drain visited %d/%d items", drained, tc.itemCount)
+	}
+
+	return checksum
 }
 
 func fillSparseHeap(q *stableHeapQueue, tc sparseBenchmarkCase) {

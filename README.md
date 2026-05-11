@@ -16,7 +16,7 @@ go get github.com/Napolitain/go-fastpq
 import fastpq "github.com/Napolitain/go-fastpq"
 ```
 
-The module currently targets Go 1.22 or newer.
+The module currently targets Go 1.26.3 or newer.
 
 ## Choose A Queue
 

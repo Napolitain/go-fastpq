@@ -6,8 +6,8 @@
 
 - Project shape: Go library/package.
 - Selected language: Go.
-- Minimum module target: Go 1.22 from `go.mod`.
-- Current CI runtime: Go 1.26.x in `.github/workflows/ci.yml`.
+- Minimum module target: Go 1.26.3 from `go.mod`.
+- Current CI runtime: Go 1.26.3 in `.github/workflows/ci.yml`.
 - Bootstrap source used during generation: Go program-tester guidance from the temporary bootstrap bundle. The bundle is intentionally removed after bootstrapping.
 
 ## Default Workflow
@@ -57,7 +57,7 @@
 ### Tooling Policy
 
 - Keep `go.mod` tidy and do not lower the declared Go version without a compatibility reason.
-- CI currently pins `actions/setup-go` to `1.26.x`; when updating this, verify the current stable Go line from official Go sources.
+- CI currently pins `actions/setup-go` to `1.26.3`; when updating this, verify the current stable Go line from official Go sources.
 - Use the repository-pinned linter command from `README.md` and CI unless deliberately updating tooling.
 - Prefer `gofmt` for formatting because that is the current CI gate. Do not introduce `gofumpt` as a required gate unless CI and docs are updated together.
 
